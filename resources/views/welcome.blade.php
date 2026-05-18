@@ -18,7 +18,6 @@
         @endif
     </head>
     <body id="app" class="text-red-500 h-screen antialiased leading-none">
-        Mona Lisa
-    <hello/>
+        <dashboard/>
     </body>
 </html>
