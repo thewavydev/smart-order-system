@@ -1,23 +1,56 @@
+version: "3.9"
+
 services:
+  # RabbitMQ service
   rabbitmq:
     image: rabbitmq:3-management
     container_name: rabbitmq
-
     ports:
-      - "5672:5672"
-      - "15672:15672"
-
+      - "5672:5672"      # RabbitMQ main port
+      - "15672:15672"    # RabbitMQ management UI
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    restart: unless-stopped
 
+  # Mailpit service
   mailpit:
     image: axllent/mailpit
     container_name: mailpit
-
     ports:
-      - "1025:1025"
-      - "8025:8025"
-
-      
+      - "1025:1025"      # SMTP port
+      - "8025:8025"      # Mailpit Web UI
     restart: unless-stopped
+
+  # MySQL service
+  mysql:
+    image: mysql:8.0
+    container_name: mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: smart-order-system
+      MYSQL_USER: root
+      MYSQL_PASSWORD: Intern@123
+    volumes:
+      - dbdata:/var/lib/mysql
+    restart: unless-stopped
+
+  # Laravel queue worker
+  queue_worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: laravel_worker
+    volumes:
+      - .:/var/www/html
+    depends_on:
+      - rabbitmq
+      - mailpit
+      - mysql
+    restart: unless-stopped
+    command: ["sh", "/var/www/html/docker/wait-for-db.sh", "mysql", "php", "artisan", "queue:work", "rabbitmq", "--queue=emails", "--sleep=1", "--tries=3"]
+
+volumes:
+  dbdata:
