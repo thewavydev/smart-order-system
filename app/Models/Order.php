@@ -32,12 +32,16 @@ class Order extends Model
         parent::boot();
 
         static::creating(function ($order) {
+        if (!$order->order_number) { // only if not set
+            do {
+                $year = now()->year;
+                $random = random_int(1000, 9999);
+                $number = 'ORD-' . $year . '-' . $random;
+            } while (self::where('order_number', $number)->exists());
 
-            $year = now()->year;
-            $random = random_int(1000, 9999); // 4 digits
-
-            $order->order_number = 'ORD-' . $year . '-' . $random;
-        });
+            $order->order_number = $number;
+        }
+    });
     }
 
     protected $casts = [

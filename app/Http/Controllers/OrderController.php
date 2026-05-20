@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 use App\Models\Order;
+use App\Jobs\SendOrderEmailJob;
 
 use Illuminate\Http\Request;
 
@@ -29,7 +30,7 @@ class OrderController extends Controller
     public function store(Request $request)
     {
         $validated = $request->validate([
-            'order_number'    => 'required|unique:orders',
+            // 'order_number'    => 'required|unique:orders',
             'product_name'    => 'required|string',
             'quantity'        => 'required|integer',
             'total_price'     => 'required|numeric',
@@ -37,10 +38,11 @@ class OrderController extends Controller
             'customer_email'  => 'required|email',
             'customer_phone'  => 'required|string',
             'customer_address'=> 'required|string',
-            'status'          => 'required|in:1,2,3',
+            // 'status'          => 'required|in:1,2,3',
         ]);
 
         $order = Order::create($validated);
+         SendOrderEmailJob::dispatch($order)->onQueue('emails');
 
         return response()->json([
             'order' => $order,

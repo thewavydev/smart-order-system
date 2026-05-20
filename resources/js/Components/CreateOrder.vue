@@ -117,7 +117,7 @@ export default {
       const request = {
         //test data, replace with actual form data
         customer_name: 'Lehlohonolo', 
-        customer_email: 'lehlohonolomona23@gmail.com',
+        customer_email: 'monalehlohonolo24@gmail.com',
         customer_phone: '0785268696',
         customer_address: '13206 Maphnga Street, Zone 6, Bloemfontein',
         product_name: 'Neural Link v2.0', // This should ideally come from the line items added

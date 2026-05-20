@@ -77,11 +77,11 @@ return [
                 ],
             ],
 
-            'queue' => env('RABBITMQ_QUEUE', 'default'),
+            'queue' => env('RABBITMQ_QUEUE', 'emails'),
 
             'options' => [
                 'queue' => [
-                    'exchange' => 'default',
+                    'exchange' => 'emails',
                     'exchange_type' => 'direct',
                 ],
             ],
