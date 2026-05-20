@@ -20,24 +20,32 @@ class OrderController extends Controller
      */
     public function create(Request $request)
     {
-        $order = new Order()
-        $order = validate($request->all(), [
-            'customer_name' => 'required|string',
-            'customer_email' => 'required|email',
-            'customer_phone' => 'required|string',
-        ]);
-
-        $order->save();
-        return response()->json($order, 201);
+        
     }
-
 
     /**
      * Store a newly created resource in storage.
      */
     public function store(Request $request)
     {
-        //
+        $validated = $request->validate([
+            'order_number'    => 'required|unique:orders',
+            'product_name'    => 'required|string',
+            'quantity'        => 'required|integer',
+            'total_price'     => 'required|numeric',
+            'customer_name'   => 'required|string',
+            'customer_email'  => 'required|email',
+            'customer_phone'  => 'required|string',
+            'customer_address'=> 'required|string',
+            'status'          => 'required|in:1,2,3',
+        ]);
+
+        $order = Order::create($validated);
+
+        return response()->json([
+            'order' => $order,
+            'message' => 'Order Successfully Created'
+        ], 201);
     }
 
     /**

@@ -8,7 +8,7 @@
     
     <!-- Panel -->
     <div
-      class="fixed top-0 right-0 h-full w-[400px] bg-white shadow-2xl z-[70] border-l border-outline-variant/30 flex flex-col transition-transform duration-300"
+      class="fixed top-0 right-0 h-full w-1/3 bg-white shadow-2xl z-[70] border-l border-outline-variant/30 flex flex-col transition-transform duration-300"
       :class="isOpen ? 'translate-x-0' : 'translate-x-full'"
     >
       <div class="p-6 border-b border-outline-variant/20 flex items-center justify-between">
@@ -26,17 +26,11 @@
 
       <div class="flex-1 overflow-y-auto p-8 space-y-8">
         <div class="space-y-2">
-          <label class="font-label-caps text-outline-variant">Customer</label>
-          <div class="relative">
-            <Building2 :size="18" class="absolute left-3 top-1/2 -translate-y-1/2 text-outline-variant" />
-            <select class="w-full pl-10 pr-4 py-2 bg-surface-container-low border border-outline-variant/30 rounded-lg text-sm focus:ring-2 focus:ring-primary focus:border-transparent outline-none appearance-none cursor-pointer">
-              <option>Select Customer...</option>
-              <option>Cyberdyne Systems</option>
-              <option>Weyland-Yutani Corp</option>
-              <option>Tyrell Engineering</option>
-              <option>Stark Industries</option>
-            </select>
-          </div>
+          <!-- <label class="font-label-caps text-outline-variant">Customer Name</label> -->
+          <input v-model="orderDetails.customer_name" type="text" placeholder="Enter customer name..." class="w-full px-4 py-2 border border-outline-variant/30 rounded-lg focus:ring-primary outline-none transition-colors" />
+          <input v-model="orderDetails.customer_email" type="email" placeholder="Enter customer email..." class="w-full px-4 py-2 border border-outline-variant/30 rounded-lg focus:ring-primary outline-none transition-colors" />
+          <input v-model="orderDetails.customer_phone" type="text" placeholder="Enter customer phone..." class="w-full px-4 py-2 border border-outline-variant/30 rounded-lg focus:ring-primary outline-none transition-colors" />
+          <input v-model="orderDetails.customer_address" type="text" placeholder="Enter customer address..." class="w-full px-4 py-2 border border-outline-variant/30 rounded-lg focus:ring-primary outline-none transition-colors" />
         </div>
 
         <div class="space-y-2">
@@ -52,11 +46,7 @@
                   <p class="text-[11px] text-outline-variant">Unit Price: R1,200.00</p>
                 </div>
               </div>
-              <input
-                type="number"
-                value="1"
-                class="w-16 h-8 text-center border border-outline-variant/30 rounded focus:ring-primary text-xs outline-none"
-              />
+              <input type="number" v-model="orderDetails.quantity" class="w-16 h-8 text-center border border-outline-variant/30 rounded focus:ring-primary text-xs outline-none"/>
             </div>
             
             <button class="w-full py-2 border-2 border-dashed border-outline-variant/30 rounded-lg text-xs text-outline-variant hover:border-primary/40 hover:text-primary transition-all flex items-center justify-center gap-2 cursor-pointer">
@@ -82,9 +72,8 @@
           </div>
         </div>
       </div>
-
       <div class="p-6 border-t border-outline-variant/20 bg-surface-container-lowest flex gap-3">
-        <button class="flex-1 py-3 bg-primary text-white rounded-lg font-label-caps shadow-lg shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer">
+        <button @click="submit()" class="flex-1 py-3 bg-primary text-white rounded-lg font-label-caps shadow-lg shadow-primary/20 hover:opacity-90 active:scale-[0.98] transition-all cursor-pointer">
           Commit Order
         </button>
         <button
@@ -100,19 +89,49 @@
 
 <script>
 import { X, Building2, Package, Plus } from '@lucide/vue';
-
+import axios from 'axios';
 export default {
   name: 'CreateOrderPanel',
-  components: {
-    X,
-    Building2,
-    Package,
-    Plus
-  },
+  components: { X, Building2, Package, Plus},
   props: {
     isOpen: {
       type: Boolean,
       required: true
+    }
+  },
+  data() {
+    return {
+      orderDetails: {
+        customer_name: '',
+        customer_email: '',
+        customer_phone: '',
+        customer_address: '',
+        product_name: '',
+        quantity: '',
+        total_price: '',
+      },
+    };
+  },
+  methods: {
+    submit() {
+      const request = {
+        //test data, replace with actual form data
+        customer_name: 'Lehlohonolo', 
+        customer_email: 'lehlohonolomona23@gmail.com',
+        customer_phone: '0785268696',
+        customer_address: '13206 Maphnga Street, Zone 6, Bloemfontein',
+        product_name: 'Neural Link v2.0', // This should ideally come from the line items added
+        quantity: 4,
+        total_price: 1200.00, // This should be calculated based on the line items and their quantities
+      } 
+
+      // axios.post(`${this.$apiUrl}/orders/store`, request)
+      axios.post(`${this.$apiUrl}/orders/store`, request)
+        .then(response => {
+          alert(response.data.message);
+          console.log('Order created successfully:', response.data);
+          this.$emit('close'); // Close the panel after successful submission
+        })
     }
   }
 };

@@ -9,20 +9,39 @@ use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Notifications\Notifiable;
  
-#[Fillable(['customer_name', 'customer_email', 'customer_phone'])]
+// #[Fillable(['customer_name', 'customer_email', 'customer_phone'])]
 
 class Order extends Model
 {
-    use HasFactory;
-    use Fillable;
-    use Hidden;
+    protected $table = 'orders';
 
-    public function casts(): array
+    protected $fillable = [
+        'order_number',
+        'product_name',
+        'quantity',
+        'total_price',
+        'customer_name',
+        'customer_email',
+        'customer_phone',
+        'customer_address',
+        'status',
+    ];
+
+    protected static function boot()
     {
-        return [
-            'customer_name' => 'string',
-            'customer_email' => 'string',
-            'customer_phone' => 'string',
-        ];
+        parent::boot();
+
+        static::creating(function ($order) {
+
+            $year = now()->year;
+            $random = random_int(1000, 9999); // 4 digits
+
+            $order->order_number = 'ORD-' . $year . '-' . $random;
+        });
     }
+
+    protected $casts = [
+        'created_at',
+        'updated_at',
+    ];
 }
