@@ -19,14 +19,17 @@
           <td class="px-6 py-5 font-data-mono text-[13px]" :class="index === 0 ? 'text-primary font-semibold' : 'text-on-surface-variant'">
             {{ order.id }}
           </td>
-          <td class="px-6 py-5 text-sm text-on-surface">{{ order.customer }}</td>
+          <td class="px-6 py-5 text-sm text-on-surface">{{ order.order_number }}</td>
           <td class="px-6 py-5">
             <span class="px-2.5 py-0.5 rounded-md text-[10px] font-semibold border uppercase" :class="getStatusStyles(order.status)">
-              {{ order.status }}
+              {{ order.product_name }}
             </span>
           </td>
           <td class="px-6 py-5 font-data-mono text-xs text-right text-on-surface">
-            {{ order.amount }}
+            {{ order.quantity }}
+          </td>
+          <td class="px-6 py-5 font-data-mono text-xs text-right text-on-surface">
+            {{ order.total_price }}
           </td>
         </tr>
       </tbody>

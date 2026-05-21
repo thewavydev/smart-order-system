@@ -53,7 +53,7 @@
 
 <script>
 import { ChevronRight, Plus } from '@lucide/vue';
-
+import axios from 'axios';
 
 export default {
   name: 'App',
@@ -65,13 +65,26 @@ export default {
     return {
       isPanelOpen: false,
       activeTab: 'orders',
-      orders: [
-        { id: '#ORD-94281', customer: 'Cyberdyne Systems', status: 'PROCESSING', amount: 'R4,299.00' },
-        { id: '#ORD-94279', customer: 'Weyland-Yutani Corp', status: 'SUCCESS', amount: 'R12,450.00' },
-        { id: '#ORD-94275', customer: 'Tyrell Engineering', status: 'FAILED', amount: 'R850.25' },
-        { id: '#ORD-94270', customer: 'Stark Industries', status: 'SUCCESS', amount: 'R240k' },
-      ]
+      orders: [],
+      current_page: 1
+
     };
+  },
+  methods: {
+    getOrders(){
+      axios.get(`${this.$apiUrl}/orders/index`)
+      .then(response => {
+          this.orders = response.data.orders.data;
+          this.current_page = response.data.orders.current_page;
+          console.log('Orders fetched successfully:', this.orders);
+        })
+        .catch(error => {
+          console.error('Error fetching orders:', error);
+        });
+    }
+  },
+  mounted() {
+    this.getOrders();
   }
 };
 </script>

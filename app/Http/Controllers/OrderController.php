@@ -13,7 +13,11 @@ class OrderController extends Controller
      */
     public function index(Request $request)
     {
-        
+        $orders = Order::orderBy('created_at', 'desc')->get();
+        $orders = Order::paginate(5);
+        return response()->json([
+            'orders' => $orders
+        ]);
     }
 
     /**
