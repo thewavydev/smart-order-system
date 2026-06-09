@@ -1,4 +1,4 @@
-<?php
+<?php 
 
 namespace App\Models;
 
@@ -6,16 +6,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class Product extends Model
 {
-    protected $table = 'products';
-
     protected $fillable = [
         'name',
         'description',
         'price',
+        'stock',
+        'is_active'
     ];
 
-    protected $casts = [
-        'created_at',
-        'updated_at',
-    ];
+    public function orderItems()
+    {
+        return $this->hasMany(OrderItem::class);
+    }
 }

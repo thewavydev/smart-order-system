@@ -46,7 +46,7 @@ class OrderController extends Controller
         ]);
 
         $order = Order::create($validated);
-         SendOrderEmailJob::dispatch($order)->onQueue('emails');
+        SendOrderEmailJob::dispatch($order)->onQueue('emails');
 
         return response()->json([
             'order' => $order,

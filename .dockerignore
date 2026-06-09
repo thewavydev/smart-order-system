@@ -1,0 +1,15 @@
+.git
+node_modules
+vendor
+.env
+storage/logs
+storage/framework/cache
+storage/framework/sessions
+storage/framework/testing
+npm-debug.log
+.DS_Store
+.gitignore
+.idea
+.vscode
+README.md
+tests

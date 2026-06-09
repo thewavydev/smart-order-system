@@ -1,5 +1,3 @@
-version: "3.9"
-
 services:
   # RabbitMQ service
   rabbitmq:
@@ -50,7 +48,25 @@ services:
       - mailpit
       - mysql
     restart: unless-stopped
-    command: ["sh", "/var/www/html/docker/wait-for-db.sh", "mysql", "php", "artisan", "queue:work", "rabbitmq", "--queue=emails", "--sleep=1", "--tries=3"]
+    environment:
+      # Queue / RabbitMQ
+      QUEUE_CONNECTION: rabbitmq
+      RABBITMQ_HOST: rabbitmq
+      RABBITMQ_PORT: 5672
+      RABBITMQ_USER: guest
+      RABBITMQ_PASSWORD: guest
+      RABBITMQ_VHOST: /
+      RABBITMQ_QUEUE: emails
+
+      # Mailpit SMTP
+      MAIL_MAILER: smtp
+      MAIL_HOST: mailpit
+      MAIL_PORT: 1025
+      MAIL_FROM_ADDRESS: hello@example.com
+      MAIL_FROM_NAME: Smart Order System
+    command: ["php", "artisan", "queue:work", "rabbitmq", "--queue=emails", "--sleep=1", "--tries=3"]
+
+
 
 volumes:
   dbdata:

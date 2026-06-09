@@ -26,13 +26,10 @@ class SendOrderEmailJob implements ShouldQueue
      */
     public function handle(): void
     {
-        try {
-            Mail::to($this->order->customer_email)
-                ->queue(new OrderCreatedMail($this->order));
+        Mail::to($this->order->customer_email)
+            ->send(new OrderCreatedMail($this->order));
 
-            \Log::info("Order email queued for order #{$this->order->id}");
-        } catch (\Exception $e) {
-            \Log::error("Failed to send order email: {$e->getMessage()}");
-        }
+        \Log::info("Order email sent for order #{$this->order->id}");
     }
+
 }
