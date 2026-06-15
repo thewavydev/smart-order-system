@@ -7,9 +7,20 @@ use App\Models\WhatsAppSession;
 use App\Models\Product;
 use App\Models\Customer;
 use App\Models\Order;
+use App\Models\OrderItem;
+use App\Jobs\ProcessOrderJob;
+use App\Services\GeminiService;
 
 class WhatsAppWebhookController extends Controller
 {
+
+    protected GeminiService $gemini;
+
+    public function __construct(GeminiService $gemini)
+    {
+        $this->gemini = $gemini;
+    }
+
     private function sendMessage($to, $message)
     {
         $client = new Client(
@@ -26,17 +37,64 @@ class WhatsAppWebhookController extends Controller
         );
     }
 
-     public function handle(Request $request)
+    public function handle(Request $request)
     {
-        $phone = str_replace('whatsapp:','',$request->From);
+        $phone = str_replace(
+            'whatsapp:',
+            '',
+            $request->input('From')
+        );
 
-        $message = trim(strtolower($request->Body));
+        $message = trim(
+            strtolower(
+                $request->input('Body')
+            )
+        );
 
         $session = WhatsAppSession::firstOrCreate([
             'phone_number' => $phone
         ]);
 
-        if ($message === 'hi' || $message === 'hello') {
+        /*
+        |--------------------------------------------------------------------------
+        | AI Ordering
+        |--------------------------------------------------------------------------
+        */
+        if (
+            $session->step !== 'ai_confirm' &&
+            !in_array(
+                $message,
+                ['hi', 'hello']
+            )
+        ) {
+
+            $aiOrder = $this->gemini->parseOrder($message);
+
+            if (
+                $aiOrder &&
+                isset($aiOrder['intent']) &&
+                $aiOrder['intent'] === 'order'
+            ) {
+                return $this->showAIOrderSummary(
+                    $phone,
+                    $aiOrder,
+                    $session
+                );
+            }
+        }
+        
+
+        /*
+        |--------------------------------------------------------------------------
+        | Menu Flow
+        |--------------------------------------------------------------------------
+        */
+        if (
+            in_array(
+                $message,
+                ['hi', 'hello']
+            )
+        ) {
             return $this->showMainMenu(
                 $phone,
                 $session
@@ -92,6 +150,207 @@ class WhatsAppWebhookController extends Controller
             "2. Place Order\n".
             "3. Check Order Status"
         );
+
+        return response()->json([
+            'success' => true
+        ]);
+    }
+
+    private function handleAIOrder(string $phone,array $aiOrder,WhatsAppSession $session)
+    {
+        $customer = Customer::firstOrCreate([
+            'phone_number' => $phone
+        ]);
+
+        $total = 0;
+
+        $order = Order::create([
+            'customer_id' => $customer->id,
+            'status' => 'pending',
+            'source' => 'whatsapp_ai',
+            'total' => 0
+        ]);
+
+        foreach ($aiOrder['items'] as $item) {
+
+            $product = Product::where(
+                'name',
+                'like',
+                '%' . $item['product'] . '%'
+            )->first();
+
+            if (!$product) {
+                continue;
+            }
+
+            OrderItem::create([
+                'order_id' => $order->id,
+                'product_id' => $product->id,
+                'quantity' => $item['quantity'],
+                'price' => $product->price
+            ]);
+
+            $total += (
+                $product->price *
+                $item['quantity']
+            );
+        }
+
+        $order->update([
+            'total' => $total
+        ]);
+
+        ProcessOrderJob::dispatch(
+            $order
+        )->onQueue('orders');
+
+        $this->sendMessage(
+            $phone,
+            "Order #{$order->id} created successfully.\n".
+            "Total: R{$total}"
+        );
+
+        $session->delete();
+
+        return response()->json([
+            'success' => true
+        ]);
+    }
+
+    private function showAIOrderSummary(string $phone,array $aiOrder,WhatsAppSession $session)
+    {
+        $summary = "Order Summary\n\n";
+        $total = 0;
+
+        foreach ($aiOrder['items'] as $index => $item) {
+
+            $product = Product::whereRaw(
+                'LOWER(name) LIKE ?',
+                ['%' . strtolower($item['product']) . '%']
+            )->first();
+
+            if (!$product) {
+                continue;
+            }
+
+            $lineTotal =
+                $product->price *
+                $item['quantity'];
+
+            $total += $lineTotal;
+
+            $summary .=
+                ($index + 1) .
+                ". {$product->name} x {$item['quantity']} = R" .
+                number_format($lineTotal, 2) .
+                "\n";
+        }
+
+        $summary .=
+            "\nTotal: R" .
+            number_format($total, 2) .
+            "\n\nReply YES to confirm or NO to cancel.";
+
+        $session->update([
+            'step' => 'ai_confirm',
+            'pending_order' => json_encode($aiOrder)
+        ]);
+
+        $this->sendMessage(
+            $phone,
+            $summary
+        );
+
+        return response()->json([
+            'success' => true
+        ]);
+    }
+
+    private function handleAiConfirmation(string $phone,string $message,WhatsAppSession $session)
+    {
+        if (strtoupper($message) === 'NO') {
+
+            $this->sendMessage(
+                $phone,
+                'Order cancelled.'
+            );
+
+            $session->delete();
+
+            return response()->json([
+                'success' => true
+            ]);
+        }
+
+        if (strtoupper($message) !== 'YES') {
+
+            $this->sendMessage(
+                $phone,
+                'Reply YES to confirm or NO to cancel.'
+            );
+
+            return response()->json([
+                'success' => true
+            ]);
+        }
+
+        $orderData = json_decode(
+            $session->pending_order,
+            true
+        );
+
+        $customer = Customer::firstOrCreate([
+            'phone_number' => $phone
+        ]);
+
+        $order = Order::create([
+            'customer_id' => $customer->id,
+            'status' => 'pending',
+            'source' => 'whatsapp_ai',
+            'total' => 0
+        ]);
+
+        $total = 0;
+
+        foreach ($orderData['items'] as $item) {
+
+            $product = Product::whereRaw(
+                'LOWER(name) LIKE ?',
+                ['%' . strtolower($item['product']) . '%']
+            )->first();
+
+            if (!$product) {
+                continue;
+            }
+
+            OrderItem::create([
+                'order_id' => $order->id,
+                'product_id' => $product->id,
+                'quantity' => (int) $item['quantity'],
+                'price' => $product->price
+            ]);
+
+            $total +=
+                $product->price *
+                (int) $item['quantity'];
+        }
+
+        $order->update([
+            'total' => $total
+        ]);
+
+        ProcessOrderJob::dispatch(
+            $order
+        )->onQueue('orders');
+
+        $this->sendMessage(
+            $phone,
+            "Order #{$order->id} created successfully.\n" .
+            "Total: R" . number_format($total, 2) .
+            "\nStatus: Pending"
+        );
+
+        $session->delete();
 
         return response()->json([
             'success' => true

@@ -6,6 +6,7 @@
           <th class="px-6 py-4 font-label-caps text-[10px] text-outline">ID</th>
           <th class="px-6 py-4 font-label-caps text-[10px] text-outline">Customer</th>
           <th class="px-6 py-4 font-label-caps text-[10px] text-outline">Status</th>
+          <th class="px-6 py-4 font-label-caps text-[10px] text-outline text-right">Source</th>
           <th class="px-6 py-4 font-label-caps text-[10px] text-outline text-right">Amount</th>
         </tr>
       </thead>
@@ -19,17 +20,17 @@
           <td class="px-6 py-5 font-data-mono text-[13px]" :class="index === 0 ? 'text-primary font-semibold' : 'text-on-surface-variant'">
             {{ order.id }}
           </td>
-          <td class="px-6 py-5 text-sm text-on-surface">{{ order.order_number }}</td>
+          <td class="px-6 py-5 text-sm text-on-surface">{{ order.customer_id }}</td>
           <td class="px-6 py-5">
             <span class="px-2.5 py-0.5 rounded-md text-[10px] font-semibold border uppercase" :class="getStatusStyles(order.status)">
-              {{ order.product_name }}
+              {{ order.status }}
             </span>
           </td>
           <td class="px-6 py-5 font-data-mono text-xs text-right text-on-surface">
-            {{ order.quantity }}
+            {{ order.source }}
           </td>
           <td class="px-6 py-5 font-data-mono text-xs text-right text-on-surface">
-            {{ order.total_price }}
+            {{ order.total }}
           </td>
         </tr>
       </tbody>
