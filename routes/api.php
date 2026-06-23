@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\WhatsAppWebhookController;
+use App\Http\Controllers\DashboardController;
 
 
 Route::get('/user', function (Request $request) {
@@ -14,6 +15,10 @@ Route::prefix('orders')->group(function () {
     Route::get('/index', [OrderController::class, 'index']);
     Route::post('/store', [OrderController::class, 'store']);
     Route::get('/{id}', [OrderController::class, 'show']);
+});
+
+Route::prefix('dashboard')->group(function () {
+    Route::get('/stats', [DashboardController::class, 'index']);
 });
 
 Route::post('/webhooks/whatsapp',[WhatsAppWebhookController::class, 'handle']);

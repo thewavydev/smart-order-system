@@ -22,4 +22,14 @@ class Order extends Model
     {
         return $this->hasMany(OrderItem::class);
     }
+//     public function orderItems()
+// {
+//     return $this->hasMany(OrderItem::class);
+// }
+
+    public function getOrderNumberAttribute()
+    {
+        return '#ORD' . str_pad($this->id, 4, '0', STR_PAD_LEFT);
+    }
+
 }

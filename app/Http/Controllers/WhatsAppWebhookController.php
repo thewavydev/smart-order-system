@@ -1,8 +1,10 @@
 <?php
 
 namespace App\Http\Controllers;
+
 use Twilio\Rest\Client;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use App\Models\WhatsAppSession;
 use App\Models\Product;
 use App\Models\Customer;
@@ -13,7 +15,6 @@ use App\Services\GeminiService;
 
 class WhatsAppWebhookController extends Controller
 {
-
     protected GeminiService $gemini;
 
     public function __construct(GeminiService $gemini)
@@ -21,6 +22,11 @@ class WhatsAppWebhookController extends Controller
         $this->gemini = $gemini;
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | SEND MESSAGE
+    |--------------------------------------------------------------------------
+    */
     private function sendMessage($to, $message)
     {
         $client = new Client(
@@ -37,452 +43,368 @@ class WhatsAppWebhookController extends Controller
         );
     }
 
+    /*
+    |--------------------------------------------------------------------------
+    | CACHE HELPERS
+    |--------------------------------------------------------------------------
+    */
+    private function getCart($phone)
+    {
+        return Cache::get("cart:$phone", []);
+    }
+
+    private function saveCart($phone, array $cart)
+    {
+        Cache::put("cart:$phone", $cart, now()->addMinutes(30));
+    }
+
+    private function clearCart($phone)
+    {
+        Cache::forget("cart:$phone");
+    }
+
+    private function getSelection($phone)
+    {
+        return Cache::get("selection:$phone", []);
+    }
+
+    private function saveSelection($phone, array $selection)
+    {
+        Cache::put("selection:$phone", $selection, now()->addMinutes(30));
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | ENTRY
+    |--------------------------------------------------------------------------
+    */
     public function handle(Request $request)
     {
-        $phone = str_replace(
-            'whatsapp:',
-            '',
-            $request->input('From')
-        );
+        $phone = str_replace('whatsapp:', '', $request->input('From'));
+        $message = trim(strtolower($request->input('Body')));
 
-        $message = trim(
-            strtolower(
-                $request->input('Body')
-            )
-        );
+        $session = WhatsAppSession::firstOrCreate([
+            'phone_number' => $phone
+        ]);
 
-        $session = WhatsAppSession::firstOrCreate(['phone_number' => $phone]);
-
-         //AI Ordering
-       
-        if ($session->step !== 'ai_confirm' && !in_array($message,['hi', 'hello']))
-        {
-            $aiOrder = $this->gemini->parseOrder($message);
-            if (
-                $aiOrder &&
-                isset($aiOrder['intent']) &&
-                $aiOrder['intent'] === 'order'
-            ) {
-                return $this->showAIOrderSummary(
-                    $phone,
-                    $aiOrder,
-                    $session
-                );
-            }
+        if (in_array($message, ['hi', 'hello'])) {
+            return $this->showMainMenu($phone, $session);
         }
-        
-        // Menu Flow
-      
-        if (in_array($message,['hi', 'hello'])) 
-        {
-            return $this->showMainMenu($phone,$session);
+
+        /*
+        |--------------------------------------------------------------------------
+        | HANDLE "ADD MORE OR NOT" STEP (IMPORTANT FIX)
+        |--------------------------------------------------------------------------
+        */
+        if ($session->step === 'adding_products_confirm') {
+
+            if ($message === 'yes') {
+                $session->update(['step' => 'adding_products']);
+                return $this->showProducts($phone);
+            }
+
+            if ($message === 'no') {
+                $session->update(['step' => 'quantity_entry']);
+
+                $selection = $this->getSelection($phone);
+
+                $msg = "Great 👍\n\nNow enter quantities for your selected items:\n\n";
+
+                foreach ($selection as $item) {
+                    $msg .= "{$item['product_id']}:1 for {$item['name']}\n";
+                }
+
+                $msg .= "\nFormat: productId:quantity (e.g. 1:2,3:1)";
+
+                $this->sendMessage($phone, $msg);
+
+                return response()->json(['success' => true]);
+            }
         }
 
         switch ($session->step) {
 
             case 'menu':
-                return $this->handleMenuSelection(
-                    $phone,
-                    $message,
-                    $session
-                );
+                return $this->handleMenuSelection($phone, $message, $session);
 
-            case 'select_product':
-                return $this->handleProductSelection(
-                    $phone,
-                    $message,
-                    $session
-                );
+            case 'adding_products':
+                return $this->handleProductSelection($phone, $message, $session);
 
-            case 'quantity':
-                return $this->handleQuantitySelection(
-                    $phone,
-                    $message,
-                    $session
-                );
+            case 'quantity_entry':
+                return $this->handleQuantityEntry($phone, $message, $session);
 
             case 'confirm':
-                return $this->handleConfirmation(
-                    $phone,
-                    $message,
-                    $session
-                );
+                return $this->handleConfirmation($phone, $message, $session);
         }
 
-        return response()->json([
-            'success' => true
-        ]);
+        return response()->json(['success' => true]);
     }
 
-    private function showMainMenu( $phone, $session)
+    /*
+    |--------------------------------------------------------------------------
+    | MAIN MENU
+    |--------------------------------------------------------------------------
+    */
+    private function showMainMenu($phone, $session)
     {
-        $session->update([
-            'step' => 'menu'
-        ]);
+        $session->update(['step' => 'menu']);
 
         $this->sendMessage(
             $phone,
-            "Welcome to QueueFlow\n\n".
-            "1. View Products\n".
-            "2. Place Order\n".
-            "3. Check Order Status"
+            "Welcome to QueueFlow 🛒\n\n1. Start Order\n2. Checkout"
         );
 
-        return response()->json([
-            'success' => true
-        ]);
+        return response()->json(['success' => true]);
     }
 
-    private function handleAIOrder(string $phone,array $aiOrder,WhatsAppSession $session)
-    {
-        $customer = Customer::firstOrCreate([
-            'phone_number' => $phone
-        ]);
-
-        $total = 0;
-
-        $order = Order::create([
-            'customer_id' => $customer->id,
-            'status' => 'pending',
-            'source' => 'whatsapp_ai',
-            'total' => 0
-        ]);
-
-        foreach ($aiOrder['items'] as $item) {
-
-            $product = Product::where(
-                'name',
-                'like',
-                '%' . $item['product'] . '%'
-            )->first();
-
-            if (!$product) {
-                continue;
-            }
-
-            OrderItem::create([
-                'order_id' => $order->id,
-                'product_id' => $product->id,
-                'quantity' => $item['quantity'],
-                'price' => $product->price
-            ]);
-
-            $total += (
-                $product->price *
-                $item['quantity']
-            );
-        }
-
-        $order->update([
-            'total' => $total
-        ]);
-
-        ProcessOrderJob::dispatch(
-            $order
-        )->onQueue('orders');
-
-        $this->sendMessage(
-            $phone,
-            "Order #{$order->id} created successfully.\n".
-            "Total: R{$total}"
-        );
-
-        $session->delete();
-
-        return response()->json([
-            'success' => true
-        ]);
-    }
-
-    private function showAIOrderSummary(string $phone,array $aiOrder,WhatsAppSession $session)
-    {
-        $summary = "Order Summary\n\n";
-        $total = 0;
-
-        foreach ($aiOrder['items'] as $index => $item) {
-
-            $product = Product::whereRaw(
-                'LOWER(name) LIKE ?',
-                ['%' . strtolower($item['product']) . '%']
-            )->first();
-
-            if (!$product) {
-                continue;
-            }
-
-            $lineTotal =
-                $product->price *
-                $item['quantity'];
-
-            $total += $lineTotal;
-
-            $summary .=
-                ($index + 1) .
-                ". {$product->name} x {$item['quantity']} = R" .
-                number_format($lineTotal, 2) .
-                "\n";
-        }
-
-        $summary .=
-            "\nTotal: R" .
-            number_format($total, 2) .
-            "\n\nReply YES to confirm or NO to cancel.";
-
-        $session->update([
-            'step' => 'ai_confirm',
-            'pending_order' => json_encode($aiOrder)
-        ]);
-
-        $this->sendMessage(
-            $phone,
-            $summary
-        );
-
-        return response()->json([
-            'success' => true
-        ]);
-    }
-
-    private function handleAiConfirmation(string $phone,string $message,WhatsAppSession $session)
-    {
-        if (strtoupper($message) === 'NO') {
-
-            $this->sendMessage(
-                $phone,
-                'Order cancelled.'
-            );
-
-            $session->delete();
-
-            return response()->json([
-                'success' => true
-            ]);
-        }
-
-        if (strtoupper($message) !== 'YES') {
-
-            $this->sendMessage(
-                $phone,
-                'Reply YES to confirm or NO to cancel.'
-            );
-
-            return response()->json([
-                'success' => true
-            ]);
-        }
-
-        $orderData = json_decode(
-            $session->pending_order,
-            true
-        );
-
-        $customer = Customer::firstOrCreate([
-            'phone_number' => $phone
-        ]);
-
-        $order = Order::create([
-            'customer_id' => $customer->id,
-            'status' => 'pending',
-            'source' => 'whatsapp_ai',
-            'total' => 0
-        ]);
-
-        $total = 0;
-
-        foreach ($orderData['items'] as $item) {
-
-            $product = Product::whereRaw(
-                'LOWER(name) LIKE ?',
-                ['%' . strtolower($item['product']) . '%']
-            )->first();
-
-            if (!$product) {
-                continue;
-            }
-
-            OrderItem::create([
-                'order_id' => $order->id,
-                'product_id' => $product->id,
-                'quantity' => (int) $item['quantity'],
-                'price' => $product->price
-            ]);
-
-            $total +=
-                $product->price *
-                (int) $item['quantity'];
-        }
-
-        $order->update([
-            'total' => $total
-        ]);
-
-        ProcessOrderJob::dispatch(
-            $order
-        )->onQueue('orders');
-
-        $this->sendMessage(
-            $phone,
-            "Order #{$order->id} created successfully.\n" .
-            "Total: R" . number_format($total, 2) .
-            "\nStatus: Pending"
-        );
-
-        $session->delete();
-
-        return response()->json([
-            'success' => true
-        ]);
-    }
-
-    private function handleMenuSelection($phone,$message,$session)
+    /*
+    |--------------------------------------------------------------------------
+    | MENU
+    |--------------------------------------------------------------------------
+    */
+    private function handleMenuSelection($phone, $message, $session)
     {
         if ($message == '1') {
-
-            $products = Product::all();
-
-            $response = "Products\n\n";
-
-            foreach ($products as $product) {
-
-                $response .=
-                    "{$product->id}. ".
-                    "{$product->name} - ".
-                    "R{$product->price}\n";
-            }
-
-            $response .=
-                "\nReply with product number";
-
-            $session->update([
-                'step' => 'select_product'
-            ]);
-
-            $this->sendMessage(
-                $phone,
-                $response
-            );
+            $session->update(['step' => 'adding_products']);
+            return $this->showProducts($phone);
         }
 
-        return response()->json([
-            'success' => true
-        ]);
+        if ($message == '2') {
+            return $this->showCartSummary($phone);
+        }
+
+        return response()->json(['success' => true]);
     }
 
-    private function handleProductSelection($phone,$message,$session)
+    /*
+    |--------------------------------------------------------------------------
+    | SHOW PRODUCTS ONE BY ONE SELECTION
+    |--------------------------------------------------------------------------
+    */
+    private function showProducts($phone)
+    {
+        $products = Product::all();
+
+        $msg = "Select a product by typing its ID:\n\n";
+
+        foreach ($products as $p) {
+            $msg .= "{$p->id}. {$p->name} - R{$p->price}\n";
+        }
+
+        $this->sendMessage($phone, $msg);
+
+        return response()->json(['success' => true]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | PRODUCT SELECTION (ONE AT A TIME)
+    |--------------------------------------------------------------------------
+    */
+    private function handleProductSelection($phone, $message, $session)
     {
         $product = Product::find($message);
 
         if (!$product) {
-
-            $this->sendMessage(
-                $phone,
-                'Invalid product'
-            );
-
-            return response()->json([
-                'success' => true
-            ]);
+            $this->sendMessage($phone, "Invalid product. Please enter a valid product ID.");
+            return response()->json(['success' => true]);
         }
 
-        $session->update([
+        $selection = $this->getSelection($phone);
+
+        $selection[] = [
             'product_id' => $product->id,
-            'step' => 'quantity'
-        ]);
+            'name' => $product->name,
+            'price' => $product->price
+        ];
+
+        $this->saveSelection($phone, $selection);
 
         $this->sendMessage(
             $phone,
-            "How many {$product->name} would you like?"
+            "{$product->name} added ✅\n\nWould you like to add something else? (YES/NO)"
         );
 
-        return response()->json([
-            'success' => true
-        ]);
+        $session->update(['step' => 'adding_products_confirm']);
+
+        return response()->json(['success' => true]);
     }
 
-    private function handleQuantitySelection($phone,$message,$session)
+    // /*
+    // |--------------------------------------------------------------------------
+    // | ADD MORE OR PROCEED
+    // |--------------------------------------------------------------------------
+    // */
+    // public function handle(Request $request)
+    // {
+    //     $phone = str_replace('whatsapp:', '', $request->input('From'));
+    //     $message = trim(strtolower($request->input('Body')));
+
+    //     $session = WhatsAppSession::firstOrCreate([
+    //         'phone_number' => $phone
+    //     ]);
+
+    //     if ($session->step === 'adding_products_confirm') {
+
+    //         if ($message === 'yes') {
+    //             $session->update(['step' => 'adding_products']);
+    //             return $this->showProducts($phone);
+    //         }
+
+    //         if ($message === 'no') {
+    //             $session->update(['step' => 'quantity_entry']);
+
+    //             $this->sendMessage(
+    //                 $phone,
+    //                 "Great 👍\nNow enter quantities like:\n\n1:2 (productId:quantity)"
+    //             );
+
+    //             return response()->json(['success' => true]);
+    //         }
+    //     }
+
+    //     switch ($session->step) {
+
+    //         case 'quantity_entry':
+    //             return $this->handleQuantityEntry($phone, $message, $session);
+
+    //         case 'confirm':
+    //             return $this->handleConfirmation($phone, $message, $session);
+    //     }
+
+    //     return response()->json(['success' => true]);
+    // }
+
+    /*
+    |--------------------------------------------------------------------------
+    | QUANTITIES (FROM SELECTION)
+    |--------------------------------------------------------------------------
+    */
+    private function handleQuantityEntry($phone, $message, $session)
     {
-        $session->update([
-            'quantity' => (int) $message,
-            'step' => 'confirm'
-        ]);
+        $selection = $this->getSelection($phone);
 
-        $product = Product::find(
-            $session->product_id
-        );
-
-        $total =
-            $product->price *
-            $message;
-
-        $this->sendMessage(
-            $phone,
-            "Order Summary\n\n".
-            "{$product->name}\n".
-            "Qty: {$message}\n".
-            "Total: R{$total}\n\n".
-            "Reply YES to confirm"
-        );
-
-        return response()->json([
-            'success' => true
-        ]);
-    }
-
-    private function handleConfirmation($phone,$message,$session)
-    {
-        if (strtoupper($message) !== 'YES') {
-
-            $this->sendMessage(
-                $phone,
-                'Order cancelled'
-            );
-
-            return response()->json([
-                'success' => true
-            ]);
+        if (empty($selection)) {
+            $this->sendMessage($phone, "Session expired.");
+            return response()->json(['success' => true]);
         }
 
-        $customer =
-            Customer::firstOrCreate([
-                'phone_number' => $phone
-            ]);
+        $qty = array_filter(array_map('trim', explode(',', $message)));
 
-        $product =
-            Product::find(
-                $session->product_id
-            );
+        $cart = [];
 
-        $total =
-            $product->price *
-            $session->quantity;
+        foreach ($qty as $item) {
+
+            [$id, $quantity] = array_map('trim', explode(':', $item));
+
+            foreach ($selection as $sel) {
+                if ($sel['product_id'] == $id) {
+
+                    $cart[] = [
+                        'product_id' => $sel['product_id'],
+                        'name' => $sel['name'],
+                        'price' => $sel['price'],
+                        'quantity' => (int) $quantity
+                    ];
+                }
+            }
+        }
+
+        $this->saveCart($phone, $cart);
+
+        $session->update(['step' => 'confirm']);
+
+        return $this->showCartSummary($phone);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | SUMMARY
+    |--------------------------------------------------------------------------
+    */
+    private function showCartSummary($phone)
+    {
+        $cart = $this->getCart($phone);
+
+        $msg = "🛒 ORDER SUMMARY\n\n";
+        $total = 0;
+
+        foreach ($cart as $item) {
+            $line = $item['price'] * $item['quantity'];
+            $total += $line;
+
+            $msg .= "{$item['name']} x {$item['quantity']} = R" .
+                number_format($line, 2) . "\n";
+        }
+
+        $msg .= "\nTOTAL: R" . number_format($total, 2);
+        $msg .= "\n\nReply YES to confirm or NO to cancel";
+
+        $this->sendMessage($phone, $msg);
+
+        return response()->json(['success' => true]);
+    }
+
+    /*
+    |--------------------------------------------------------------------------
+    | CONFIRM
+    |--------------------------------------------------------------------------
+    */
+    private function handleConfirmation($phone, $message, $session)
+    {
+        $message = strtoupper(trim($message));
+
+        if ($message === 'NO') {
+            $this->sendMessage($phone, "Order cancelled ❌");
+            $this->clearCart($phone);
+            $session->delete();
+            return response()->json(['success' => true]);
+        }
+
+        if ($message !== 'YES') {
+            $this->sendMessage($phone, "Reply YES or NO");
+            return response()->json(['success' => true]);
+        }
+
+        $cart = $this->getCart($phone);
+
+        $customer = Customer::firstOrCreate([
+            'phone_number' => $phone
+        ]);
 
         $order = Order::create([
             'customer_id' => $customer->id,
             'status' => 'pending',
-            'total' => $total,
-            'source' => 'whatsapp'
+            'source' => 'whatsapp',
+            'total' => 0
         ]);
 
-        OrderItem::create([
-            'order_id' => $order->id,
-            'product_id' => $product->id,
-            'quantity' => $session->quantity,
-            'price' => $product->price
-        ]);
+        $total = 0;
 
-        ProcessOrderJob::dispatch(
-            $order
-        )->onQueue('orders');
+        foreach ($cart as $item) {
+
+            OrderItem::create([
+                'order_id' => $order->id,
+                'product_id' => $item['product_id'],
+                'quantity' => $item['quantity'],
+                'price' => $item['price']
+            ]);
+
+            $total += $item['price'] * $item['quantity'];
+        }
+
+        $order->update(['total' => $total]);
+
+        ProcessOrderJob::dispatch($order)->onQueue('orders');
 
         $this->sendMessage(
             $phone,
-            "Order #{$order->id} created successfully"
+            "🎉 ORDER CONFIRMED!\nOrder #{$order->id}\nTotal: R" . number_format($total, 2)
         );
 
+        $this->clearCart($phone);
         $session->delete();
 
-        return response()->json([
-            'success' => true
-        ]);
+        return response()->json(['success' => true]);
     }
 }

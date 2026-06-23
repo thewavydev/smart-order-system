@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 use App\Models\Order;
 use App\Jobs\SendOrderEmailJob;
+use App\Models\OrderItem;
 
 use Illuminate\Http\Request;
 
@@ -13,8 +14,14 @@ class OrderController extends Controller
      */
     public function index(Request $request)
     {
-        $orders = Order::orderBy('created_at', 'desc')->get();
-        $orders = Order::paginate(5);
+        $orders = Order::with([
+                'customer:id,phone_number',
+                'items.product:id,name'
+            ])
+            ->select('id', 'customer_id', 'total','source',  'status', 'created_at')
+            ->orderBy('created_at', 'desc')
+            ->paginate(5);
+
         return response()->json([
             'orders' => $orders
         ]);
