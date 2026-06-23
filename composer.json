@@ -11,8 +11,7 @@
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^3.0",
         "php-amqplib/php-amqplib": "^3.7",
-        "twilio/sdk": "^8.11",
-        "vladimir-yuldashev/laravel-queue-rabbitmq": "^14.5"
+        "twilio/sdk": "^8.11"
     },
     "require-dev": {
         "fakerphp/faker": "^1.23",
