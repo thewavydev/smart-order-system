@@ -17,7 +17,14 @@
             </style>
         @endif
     </head>
-    <body id="app" class="text-red-500 h-screen antialiased leading-none">
-        <dashboard/>
+    <body id="app" class="text-red-500 h-screen ">
+        <!-- Vue Sidebar Component -->
+        <sidebar></sidebar>
+        <div class="flex-1 flex flex-col">
+            <top-bar></top-bar>
+            <main class="p-6">
+                @yield('content')
+            </main>
+        </div>
     </body>
 </html>

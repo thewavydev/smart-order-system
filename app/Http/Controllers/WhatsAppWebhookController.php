@@ -51,25 +51,13 @@ class WhatsAppWebhookController extends Controller
             )
         );
 
-        $session = WhatsAppSession::firstOrCreate([
-            'phone_number' => $phone
-        ]);
+        $session = WhatsAppSession::firstOrCreate(['phone_number' => $phone]);
 
-        /*
-        |--------------------------------------------------------------------------
-        | AI Ordering
-        |--------------------------------------------------------------------------
-        */
-        if (
-            $session->step !== 'ai_confirm' &&
-            !in_array(
-                $message,
-                ['hi', 'hello']
-            )
-        ) {
-
+         //AI Ordering
+       
+        if ($session->step !== 'ai_confirm' && !in_array($message,['hi', 'hello']))
+        {
             $aiOrder = $this->gemini->parseOrder($message);
-
             if (
                 $aiOrder &&
                 isset($aiOrder['intent']) &&
@@ -83,22 +71,11 @@ class WhatsAppWebhookController extends Controller
             }
         }
         
-
-        /*
-        |--------------------------------------------------------------------------
-        | Menu Flow
-        |--------------------------------------------------------------------------
-        */
-        if (
-            in_array(
-                $message,
-                ['hi', 'hello']
-            )
-        ) {
-            return $this->showMainMenu(
-                $phone,
-                $session
-            );
+        // Menu Flow
+      
+        if (in_array($message,['hi', 'hello'])) 
+        {
+            return $this->showMainMenu($phone,$session);
         }
 
         switch ($session->step) {

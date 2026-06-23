@@ -1,58 +1,67 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Smart Order System
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+This is a full-stack SaaS-style ordering system that enables customers to place orders via WhatsApp using natural language or structured menu flows. It combines Laravel 13, Vue.js 3, MySQL, and Gemini AI to provide an intelligent, conversational commerce experience for small to medium businesses.
 
-## About Laravel
+## What it does
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+- Shows a basic dashboard at `/`.
+- Shows orders at `/orders`.
+- Creates orders via API:
+  - `POST /api/orders/store` (uses `OrderController@store`)
+- Accepts WhatsApp webhook messages at `POST /webhooks/whatsapp` (uses `WhatsAppWebhookController@handle`).
+  - Supports a menu flow (view products → place order → confirm).
+  - Can also parse an order intent using Gemini (see `GeminiService`).
+  - When an order is created, it dispatches queued jobs (email/order processing).
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## How to run
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+### Prerequisites
 
-## Learning Laravel
+- PHP 8.3+
+- Composer
+- Node.js (for the Vite/Vue frontend)
+- A database (MySQL)
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
-
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
-
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
-
-## Agentic Development
-
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### 1) Local (no Docker)
 
 ```bash
-composer require laravel/boost --dev
+composer install
+npm install
+cp .env.example .env
+php artisan key:generate
 
-php artisan boost:install
+php artisan migrate --seed
+
+php artisan serve
+npm run dev
 ```
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+Then open:
+- http://127.0.0.1:8000
 
-## Contributing
+### 2) Docker (uses MySQL + RabbitMQ + Mailpit)
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+```bash
+docker-compose up --build
+```
 
-## Code of Conduct
+Docker will run:
+- MySQL (database)
+- RabbitMQ (queue)
+- Mailpit (email testing)
+- A Laravel queue worker container (`php artisan queue:work ...`)
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Key routes
 
-## Security Vulnerabilities
+- `GET /` → dashboard view
+- `GET /orders` → orders view
+- `POST /webhooks/whatsapp` → WhatsApp webhook handler
+- `GET /api/orders/index` → list orders (paginated)
+- `POST /api/orders/store` → create order
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+## Notes
 
-## License
+- WhatsApp webhook requires Twilio credentials (`services.twilio.*`).
+- Gemini ordering requires `GEMINI_API_KEY`.
+- Queue worker is required for queued jobs (email sending).
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
