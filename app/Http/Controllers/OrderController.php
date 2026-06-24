@@ -18,9 +18,17 @@ class OrderController extends Controller
                 'customer:id,phone_number',
                 'items.product:id,name'
             ])
-            ->select('id', 'customer_id', 'total','source',  'status', 'created_at')
+            ->select('id', 'customer_id', 'total', 'source', 'status', 'created_at')
             ->orderBy('created_at', 'desc')
             ->paginate(5);
+
+        $orders->getCollection()->transform(function ($order) {
+            $order->products = $order->items->map(function ($item) {
+                return $item->product->name . ' x' . $item->quantity;
+            })->implode(', ');
+
+            return $order;
+        });
 
         return response()->json([
             'orders' => $orders

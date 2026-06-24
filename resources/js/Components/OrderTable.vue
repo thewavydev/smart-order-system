@@ -1,11 +1,13 @@
 <template>
   <div class="bg-white border border-outline-variant/40 rounded-xl overflow-hidden shadow-sm">
+
     <table class="w-full text-left border-collapse">
 
       <thead class="bg-surface-container-lowest border-b border-outline-variant/20">
         <tr>
           <th class="px-6 py-4 text-[10px] text-outline">ORDER</th>
           <th class="px-6 py-4 text-[10px] text-outline">CUSTOMER</th>
+          <th class="px-6 py-4 text-[10px] text-outline">PRODUCTS</th>
           <th class="px-6 py-4 text-[10px] text-outline">STATUS</th>
           <th class="px-6 py-4 text-[10px] text-outline text-right">SOURCE</th>
           <th class="px-6 py-4 text-[10px] text-outline text-right">AMOUNT</th>
@@ -15,12 +17,12 @@
       <tbody class="divide-y divide-outline-variant/10">
 
         <tr
-          v-for="(order, index) in orders"
+          v-for="order in orders"
           :key="order.id"
           class="hover:bg-surface-container-low/50 cursor-pointer transition-colors"
         >
 
-          <!-- ORDER NUMBER -->
+          <!-- ORDER ID -->
           <td class="px-6 py-5 font-data-mono text-[13px] text-on-surface font-semibold">
             #{{ order.id }}
           </td>
@@ -28,6 +30,13 @@
           <!-- CUSTOMER -->
           <td class="px-6 py-5 text-sm text-on-surface">
             {{ order.customer.phone_number }}
+          </td>
+
+          <!-- PRODUCTS -->
+          <td class="px-6 py-5 text-xs text-on-surface max-w-[300px]">
+            <span class="line-clamp-2">
+              {{ order.products }}
+            </span>
           </td>
 
           <!-- STATUS -->
@@ -55,7 +64,7 @@
       </tbody>
     </table>
 
-    <!-- PAGINATION (static for now) -->
+    <!-- PAGINATION -->
     <div class="px-6 py-4 flex items-center justify-between bg-surface-container-low/20">
       <span class="text-[11px] text-outline uppercase">
         Page {{ meta.current_page }} of {{ meta.last_page }}
