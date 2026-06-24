@@ -22,11 +22,8 @@ class WhatsAppWebhookController extends Controller
         $this->gemini = $gemini;
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | SEND MESSAGE
-    |--------------------------------------------------------------------------
-    */
+    // SEND MESSAGE
+
     private function sendMessage($to, $message)
     {
         $client = new Client(
@@ -43,11 +40,8 @@ class WhatsAppWebhookController extends Controller
         );
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | CACHE HELPERS
-    |--------------------------------------------------------------------------
-    */
+    // CACHE HELPERS
+
     private function getCart($phone)
     {
         return Cache::get("cart:$phone", []);
@@ -73,11 +67,14 @@ class WhatsAppWebhookController extends Controller
         Cache::put("selection:$phone", $selection, now()->addMinutes(30));
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | ENTRY
-    |--------------------------------------------------------------------------
-    */
+    private function clearMemory($phone)
+    {
+        Cache::forget("cart:$phone");
+        Cache::forget("selection:$phone");
+    }
+
+    // ENTRY
+
     public function handle(Request $request)
     {
         $phone = str_replace('whatsapp:', '', $request->input('From'));
@@ -91,11 +88,8 @@ class WhatsAppWebhookController extends Controller
             return $this->showMainMenu($phone, $session);
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | HANDLE "ADD MORE OR NOT" STEP (IMPORTANT FIX)
-        |--------------------------------------------------------------------------
-        */
+        // HANDLE "ADD MORE OR NOT" STEP
+
         if ($session->step === 'adding_products_confirm') {
 
             if ($message === 'yes') {
@@ -108,13 +102,13 @@ class WhatsAppWebhookController extends Controller
 
                 $selection = $this->getSelection($phone);
 
-                $msg = "Great 👍\n\nNow enter quantities for your selected items:\n\n";
+                $msg = "Great \n\nNow enter quantities for your selected items:\n\n";
 
                 foreach ($selection as $item) {
                     $msg .= "{$item['product_id']}:1 for {$item['name']}\n";
                 }
 
-                $msg .= "\nFormat: productId:quantity (e.g. 1:2,3:1)";
+                $msg .= "\nFormat: Product Number:Quantity (e.g. 1:2,3:1)";
 
                 $this->sendMessage($phone, $msg);
 
@@ -140,28 +134,22 @@ class WhatsAppWebhookController extends Controller
         return response()->json(['success' => true]);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | MAIN MENU
-    |--------------------------------------------------------------------------
-    */
+    // MAIN MENU
+
     private function showMainMenu($phone, $session)
     {
         $session->update(['step' => 'menu']);
 
         $this->sendMessage(
             $phone,
-            "Welcome to QueueFlow 🛒\n\n1. Start Order\n2. Checkout"
+            "Welcome to Nolo Market 🛒\n\n1. Start Order\n2. Checkout"
         );
 
         return response()->json(['success' => true]);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | MENU
-    |--------------------------------------------------------------------------
-    */
+    // MENU
+
     private function handleMenuSelection($phone, $message, $session)
     {
         if ($message == '1') {
@@ -176,11 +164,8 @@ class WhatsAppWebhookController extends Controller
         return response()->json(['success' => true]);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | SHOW PRODUCTS ONE BY ONE SELECTION
-    |--------------------------------------------------------------------------
-    */
+    // SHOW PRODUCTS ONE BY ONE SELECTION
+
     private function showProducts($phone)
     {
         $products = Product::all();
@@ -196,11 +181,8 @@ class WhatsAppWebhookController extends Controller
         return response()->json(['success' => true]);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | PRODUCT SELECTION (ONE AT A TIME)
-    |--------------------------------------------------------------------------
-    */
+    // PRODUCT SELECTION (ONE AT A TIME)
+
     private function handleProductSelection($phone, $message, $session)
     {
         $product = Product::find($message);
@@ -230,56 +212,9 @@ class WhatsAppWebhookController extends Controller
         return response()->json(['success' => true]);
     }
 
-    // /*
-    // |--------------------------------------------------------------------------
-    // | ADD MORE OR PROCEED
-    // |--------------------------------------------------------------------------
-    // */
-    // public function handle(Request $request)
-    // {
-    //     $phone = str_replace('whatsapp:', '', $request->input('From'));
-    //     $message = trim(strtolower($request->input('Body')));
 
-    //     $session = WhatsAppSession::firstOrCreate([
-    //         'phone_number' => $phone
-    //     ]);
+    // QUANTITIES (FROM SELECTION)
 
-    //     if ($session->step === 'adding_products_confirm') {
-
-    //         if ($message === 'yes') {
-    //             $session->update(['step' => 'adding_products']);
-    //             return $this->showProducts($phone);
-    //         }
-
-    //         if ($message === 'no') {
-    //             $session->update(['step' => 'quantity_entry']);
-
-    //             $this->sendMessage(
-    //                 $phone,
-    //                 "Great 👍\nNow enter quantities like:\n\n1:2 (productId:quantity)"
-    //             );
-
-    //             return response()->json(['success' => true]);
-    //         }
-    //     }
-
-    //     switch ($session->step) {
-
-    //         case 'quantity_entry':
-    //             return $this->handleQuantityEntry($phone, $message, $session);
-
-    //         case 'confirm':
-    //             return $this->handleConfirmation($phone, $message, $session);
-    //     }
-
-    //     return response()->json(['success' => true]);
-    // }
-
-    /*
-    |--------------------------------------------------------------------------
-    | QUANTITIES (FROM SELECTION)
-    |--------------------------------------------------------------------------
-    */
     private function handleQuantityEntry($phone, $message, $session)
     {
         $selection = $this->getSelection($phone);
@@ -317,16 +252,13 @@ class WhatsAppWebhookController extends Controller
         return $this->showCartSummary($phone);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | SUMMARY
-    |--------------------------------------------------------------------------
-    */
+    // SUMMARY
+
     private function showCartSummary($phone)
     {
         $cart = $this->getCart($phone);
 
-        $msg = "🛒 ORDER SUMMARY\n\n";
+        $msg = "ORDER SUMMARY\n\n";
         $total = 0;
 
         foreach ($cart as $item) {
@@ -345,11 +277,8 @@ class WhatsAppWebhookController extends Controller
         return response()->json(['success' => true]);
     }
 
-    /*
-    |--------------------------------------------------------------------------
-    | CONFIRM
-    |--------------------------------------------------------------------------
-    */
+    // CONFIRM
+
     private function handleConfirmation($phone, $message, $session)
     {
         $message = strtoupper(trim($message));
@@ -395,14 +324,18 @@ class WhatsAppWebhookController extends Controller
 
         $order->update(['total' => $total]);
 
-        ProcessOrderJob::dispatch($order)->onQueue('orders');
 
         $this->sendMessage(
             $phone,
-            "🎉 ORDER CONFIRMED!\nOrder #{$order->id}\nTotal: R" . number_format($total, 2)
+            "ORDER CONFIRMED!\nOrder #{$order->id}\nTotal: R" . number_format($total, 2)
         );
 
-        $this->clearCart($phone);
+        $this->clearMemory($phone);
+
+        $session->update([
+            'step' => null,
+        ]);
+
         $session->delete();
 
         return response()->json(['success' => true]);
