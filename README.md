@@ -1,6 +1,7 @@
 # Smart Order System
 
-This is a full-stack SaaS-style ordering system that enables customers to place orders via WhatsApp using natural language or structured menu flows. It combines Laravel 13, Vue.js 3, MySQL, and Gemini AI to provide an intelligent, conversational commerce experience for small to medium businesses.
+This is a full-stack ordering system that enables customers to place orders via WhatsApp using a simple menu flow. It combines Laravel, Vue.js 3, and MySQL.
+
 
 
 ## What it does
